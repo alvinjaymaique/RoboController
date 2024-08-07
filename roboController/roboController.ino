@@ -2,19 +2,33 @@
 #include <SoftwareSerial.h>;
 #include <string.h>
 
-#define ledPin 4
 
+
+// Bluetooth pins
 const byte rxPin = 10;
 const byte txPin = 11;
 SoftwareSerial BTSerial(rxPin, txPin); //RX TX
+
+#define mLeft1 2
+#define mLeft2 4
+#define mLeftPwm 3
+
+#define mRight1 5
+#define mRight2 7
+#define mRightPwm 6
+
+void run(int a, int b, int speed, int pwm);
 
 void setup() {
   // put your setup code here, to run once:
   pinMode(rxPin, INPUT);
   pinMode(txPin, OUTPUT);
-  pinMode(ledPin, OUTPUT);
   // Serial.begin(38400);
   // BTSerial.begin(38400); //AT Command Debug mode
+
+  for(int i=2; i<8; i++){
+    pinMode(i, OUTPUT);
+  }
 
   Serial.begin(9600);
   BTSerial.begin(9600);
@@ -85,6 +99,7 @@ float x_value = 0;
 float y_value = 0;
 bool isValueX = false;
 bool isNegative = false;
+// bool isForward = false;
 int maxSpeed = 200;
 int speed = int(y_value);
 int m1Speed = 0; // Left Motor
@@ -93,7 +108,7 @@ int m2Speed = 0; // Right Motor
 void loop() {
   while (BTSerial.available() > 0) {
     char dataChar = BTSerial.read();
-
+    // Serial.println(dataChar);
     if (dataChar == 'x') {
       isValueX = true;
       receivedData = ""; 
@@ -104,13 +119,14 @@ void loop() {
       isNegative = false; 
     } else if (dataChar == '-') {
       isNegative = true; 
+      // isForward = (!isNegative)?true:false;
     } else if (dataChar == '\\') {
       // Process the received data
       float value = receivedData.toFloat();
       value = min(value, 1.00);
       value = isNegative ? -value : value; 
       if (isValueX) {
-        x_value = value;
+        x_value = value;       
         // Serial.print("X: ");
         // Serial.println(x_value);
       } else {
@@ -125,8 +141,8 @@ void loop() {
       receivedData += dataChar;
     }
     speed = int(y_value*maxSpeed);
-    m1Speed = min(speed, speed*(1-x_value));
-    m2Speed = min(speed, speed*(1+x_value));
+    m1Speed = adjustSpeed(speed, speed*(1-x_value));
+    m2Speed = adjustSpeed(speed, speed*(1+x_value));
   }
   // Serial.print("X: ");
   // Serial.println(x_value);
@@ -141,4 +157,39 @@ void loop() {
   Serial.print("Right Motor Speed: ");
   Serial.println(m2Speed);
 
+  run(mLeft1, mLeft2, m1Speed, mLeftPwm);
+  run(mRight1, mRight2, m2Speed, mRightPwm);
 }
+
+int adjustSpeed(int speed, int modified_speed){
+  if(speed<0){
+    return max(speed, modified_speed);
+  }
+  return min(speed, modified_speed);
+}
+
+void run(int a, int b, int speed, int pwm) {
+  bool direction;
+  if(speed<0){
+    speed *= -1;
+    direction = true;
+  }
+  else{
+    direction = false;
+  }
+  digitalWrite(a, direction);
+  digitalWrite(b, !direction);
+  analogWrite(pwm, speed);
+}
+
+// void reverse(int a, int b, int speed, int pwm) {
+//   digitalWrite(a, HIGH);
+//   digitalWrite(b, LOW);
+//   analogWrite(pwm, speed);
+// }
+
+// void forward(int a, int b, int speed, int pwm) {
+//   digitalWrite(a, LOW);
+//   digitalWrite(b, HIGH);
+//   analogWrite(pwm, speed);
+// }
